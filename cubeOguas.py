@@ -48,7 +48,7 @@ def rotation_matrix(axis,theta):
 
 def run(pos = 0, shape = (512, 512), angles = [0.0, 0.0, 0.0], unit_tile = [3,3,3], unit_dim = [10.0e-10, 10.0e-10, 10.0e-10], sigma = 1.0):
     # Geometry stuff
-    X         = [100.0e-10, 100.0e-10]
+    X         = [200.0e-10, 200.0e-10]
     spacing_x = np.array(X) / np.array(shape, np.float64) 
     spacing_q = 1 / np.array(X)
     h         = 6.62606957e-34
@@ -122,9 +122,9 @@ def run(pos = 0, shape = (512, 512), angles = [0.0, 0.0, 0.0], unit_tile = [3,3,
     return V_proj
 
 if __name__ == '__main__':
-    tile   = np.arange(2, 10) 
+    tile   = np.arange(2, 11) 
     unit_tile = np.array([0, 0, 0])
-    sigma  = np.linspace(0.0, 2.0, 5)
+    sigma  = np.linspace(1.0, 2.0, 4)
     # [111] axis 
     angles = [np.pi / 4.0, math.acos(np.sqrt(6.0) / 3.0), 0.0]
     V_proj = []
@@ -133,4 +133,6 @@ if __name__ == '__main__':
             print t, sig
             unit_tile.fill(t)
             V_proj.append(run(angles = angles, unit_tile=unit_tile, sigma = sig))
-
+    #
+    Vs = np.array(np.abs(V_proj))
+    bg.binary_out(Vs, '../../tempdata/cubes', dt=np.float64, appendDim=True)
