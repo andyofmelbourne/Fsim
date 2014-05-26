@@ -3,21 +3,22 @@ import scipy as sp
 import math
 import os, sys, getopt
 import bagOfns as bg
+from matplotlib.gridspec import GridSpec
+import matplotlib.pyplot as plt
 
 def main(argv):
     try :
-        opts, args = getopt.getopt(argv,"hp:",["pos="])
+        opts, args = getopt.getopt(argv,"ho:",["outputdir="])
     except getopt.GetoptError:
-      print 'test_3.py -p <pos> '
+      print 'cubeOgaus.py -o <outputdir> '
       sys.exit(2)
     for opt, arg in opts:
       if opt == '-h':
-          print 'test_3.py -p <pos>'
+          print 'cubeOgaus.py -o <outputdir> '
           sys.exit()
-      elif opt in ("-p", "--pos"):
-          pos = float(arg)
-    print 'pos is ', pos
-    return pos
+      elif opt in ("-o", "--outputdir"):
+          outputdir = arg
+    return outputdir
 
 def update_progress(progress):
     barLength = 20 # Modify this to change the length of the progress bar
@@ -122,17 +123,17 @@ def run(pos = 0, shape = (512, 512), angles = [0.0, 0.0, 0.0], unit_tile = [3,3,
     return V_proj
 
 if __name__ == '__main__':
-    tile   = np.arange(2, 11) 
-    unit_tile = np.array([0, 0, 0])
-    sigma  = np.linspace(1.0, 2.0, 4)
-    # [111] axis 
-    angles = [np.pi / 4.0, math.acos(np.sqrt(6.0) / 3.0), 0.0]
-    V_proj = []
-    for t in tile:
-        for sig in sigma:
-            print t, sig
-            unit_tile.fill(t)
-            V_proj.append(run(angles = angles, unit_tile=unit_tile, sigma = sig))
+    outputDir = main(sys.argv[1:])
+    V_proj = run()
+    V_proj = np.abs(V_proj)
     #
-    Vs = np.array(np.abs(V_proj))
-    bg.binary_out(Vs, '../../tempdata/cubes', dt=np.float64, appendDim=True)
+    # output the image
+    plt.clf()
+    gs = GridSpec(1, 1)
+    ax = plt.subplot(gs[0, 0])
+    ax.imshow(V_proj, interpolation='nearest', cmap='Greys_r')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    plt.gcf().set_size_inches(10,10)
+    #
+    plt.savefig(outputDir + 'cube_of_Gaussians.png')
