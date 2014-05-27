@@ -46,7 +46,7 @@ def rotation_matrix(axis,theta):
                      [2*(b*c+a*d), a*a+c*c-b*b-d*d, 2*(c*d-a*b)],
                      [2*(b*d-a*c), 2*(c*d+a*b), a*a+d*d-b*b-c*c]])
 
-def run(pos = 0, shape = (512, 512), angles = [0.0, 0.0, 0.0], unit_tile = [3,3,3], unit_dim = [10.0e-10, 10.0e-10, 10.0e-10], sigma = 1.0):
+def run(pos = 0, shape = (512, 512), angles = [0.0, 0.0, 0.0], unit_tile = [3,3,3], unit_dim = [10.0e-10, 10.0e-10, 10.0e-10], sigma = 1.0, phi_x = 0.0):
     # Geometry stuff
     X         = [200.0e-10, 200.0e-10]
     spacing_x = np.array(X) / np.array(shape, np.float64) 
@@ -94,6 +94,8 @@ def run(pos = 0, shape = (512, 512), angles = [0.0, 0.0, 0.0], unit_tile = [3,3,
     atomic_sites = np.transpose( np.dot(rotation_matrix(np.array([0, 0, 1]), theta_z), np.transpose(atomic_sites)) )
     atomic_sites = np.transpose( np.dot(rotation_matrix(np.array([0, 1, 0]), theta_x), np.transpose(atomic_sites)) )
     atomic_sites = np.transpose( np.dot(rotation_matrix(np.array([1, 0, 0]), theta_y), np.transpose(atomic_sites)) )
+    #
+    atomic_sites = np.transpose( np.dot(rotation_matrix(np.array([0, 1, 0]), phi_x), np.transpose(atomic_sites)) )
 
     # make the potential at an atomic site (Fourier space)
     interaction = 1.0e-1
@@ -122,17 +124,21 @@ def run(pos = 0, shape = (512, 512), angles = [0.0, 0.0, 0.0], unit_tile = [3,3,
     return V_proj
 
 if __name__ == '__main__':
-    tile   = np.arange(2, 11) 
+    tile   = np.arange(4, 8) 
     unit_tile = np.array([0, 0, 0])
-    sigma  = np.linspace(1.0, 2.0, 4)
+    #
+    sigma  = 1.666667
+    #
     # [111] axis 
     angles = [np.pi / 4.0, math.acos(np.sqrt(6.0) / 3.0), 0.0]
+    #
+    phi_x  = np.linspace(0.0, np.pi/2.0, 15)
     V_proj = []
     for t in tile:
-        for sig in sigma:
-            print t, sig
+        for phi in phi_x:
+            print t, phi
             unit_tile.fill(t)
-            V_proj.append(run(angles = angles, unit_tile=unit_tile, sigma = sig))
+            V_proj.append(run(angles = angles, unit_tile=unit_tile, sigma = sigma, phi_x = phi))
     #
     Vs = np.array(np.abs(V_proj))
     bg.binary_out(Vs, '../../tempdata/cubes', dt=np.float64, appendDim=True)
