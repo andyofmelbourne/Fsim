@@ -68,6 +68,7 @@ __kernel void calculate_density(
                 BB = B + crom_B[5 * i + j];
                 // printf(" %f %f %f \n", BB, r2, PI2 );
                 out[work_group] += crom_w[5 * i + j] * occ * pow( PI / BB, (float)1.5) * exp(PI2 * r2 / BB);
+                //printf(" %f %f %f %f \n", crom_w[5 * i + j], B , crom_B[5 * i + j], BB);
             }
         }
     }
@@ -80,21 +81,29 @@ __kernel void calculate_density(
 import os
 import pyopencl as cl
 ## Step #1. Obtain an OpenCL platform.
-# with a cpu device
+# with a gpu device
+device = None
 for p in cl.get_platforms():
-    #devices = p.get_devices(cl.device_type.CPU)
     devices = p.get_devices(cl.device_type.GPU)
     if len(devices) > 0:
         platform = p
         device   = devices[0]
         break
 
+# with a gpu device
+if device is None :
+    for p in cl.get_platforms():
+        devices = p.get_devices(cl.device_type.CPU)
+        if len(devices) > 0:
+            platform = p
+            device   = devices[0]
+            break
+
 ## Step #3. Create a context for the selected device.
 context = cl.Context([device])
 queue   = cl.CommandQueue(context)
 
 # load and compile the opencl code
-#program     = cl.Program(context, render_kernel).build('-cl-fast-relaxed-math -cl-mad-enable')
 program     = cl.Program(context, render_kernel).build('-cl-fast-relaxed-math -cl-mad-enable')
 kernel      = program.calculate_density
 
@@ -109,11 +118,12 @@ def render_molecule_opencl(xyz, occ, B, names, x, y, z, cromer_mann_params, B_of
     x_grid        = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(x.ravel().astype(np.float32)))
     y_grid        = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(y.ravel().astype(np.float32)))
     z_grid        = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(z.ravel().astype(np.float32)))
-    crom_B        = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(np.array([[0.] + cromer_mann_params[name][4:] for name in names]).astype(np.float32)))
+    crom_B        = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(np.array([[0.] + cromer_mann_params[name][4:-1] for name in names]).astype(np.float32)))
     crom_w        = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(np.array([[cromer_mann_params[name][8]] + cromer_mann_params[name][:4] for name in names]).astype(np.float32)))
     occ           = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(occ.astype(np.float32)))
     B             = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(B_offset + B.astype(np.float32)))
-    S             = cl.Buffer(context, mf.READ_ONLY | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(np.zeros(x.shape, dtype=np.float32)))
+    S             = cl.Buffer(context, mf.READ_WRITE | mf.COPY_HOST_PTR, hostbuf = np.ascontiguousarray(np.zeros(x.shape, dtype=np.float32)))
+
 
     it = tqdm.tqdm(range(x.shape[0]), desc='updating pixel map')
     for i in it:
