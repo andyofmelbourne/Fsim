@@ -1,1 +1,2 @@
 from .density_calculator_intelHD import render_molecule_from_pdb
+from .density_calculator_intelHD import render_Fourier_molecule_from_pdb
