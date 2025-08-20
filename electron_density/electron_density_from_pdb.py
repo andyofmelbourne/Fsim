@@ -21,7 +21,7 @@ import sys
 
 if __name__ == '__main__':
     den = render_molecule_from_pdb(args.pdb_id, args.voxel_size, B_offset=args.B_offset)
-    
+
     # pip pickled data to stdout
     pickle.dump({'electron_density' : den.T, 'voxel_size': args.voxel_size}, sys.stdout.buffer)
 

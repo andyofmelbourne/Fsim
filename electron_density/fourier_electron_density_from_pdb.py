@@ -25,8 +25,8 @@ import numpy as np
 if __name__ == '__main__':
     shape = 3*(args.len,)
     F = render_Fourier_molecule_from_pdb(args.pdb_id, args.dq, shape, B_offset=args.B_offset)
-    
-    # pip pickled data to stdout
-    pickle.dump({'diffraction_volume' : np.abs(F)**2, 'dq': args.dq}, sys.stdout.buffer)
+
+    # pipe pickled data to stdout
+    pickle.dump({'electron_density_fourier': F, 'dq': args.dq}, sys.stdout.buffer)
 
 

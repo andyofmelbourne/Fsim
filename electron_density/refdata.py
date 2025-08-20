@@ -34,7 +34,7 @@ def get_cromermann_parameters(atomic_numbers, max_num_atom_types=None):
         arbitrary compressed index for use within the scattering code. Really
         this is just a renumbering so that each atom type recieves an index
         0, 1, 2, ... corresponding to the position of that atom's type in
-        the `cromermann` array.  
+        the `cromermann` array.
     """
 
     atom_types = np.unique(atomic_numbers)

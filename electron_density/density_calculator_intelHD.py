@@ -32,42 +32,42 @@ __kernel void calculate_q_density(
     const int  atoms,
     const int  index_offset
     )
-{                                                       
+{
     float3 r_atom, q;
-        
+
     float occ, BB, B, ramp_real, ramp_imag, q2;
     int i, j, work_group;
 
     double t, t_real, t_imag;
-    
+
     // assume one work item per work group
     work_group = get_global_id(1) + index_offset;
-    
-    // get my q coordinate 
+
+    // get my q coordinate
     q  = (float3)(qx_grid[work_group], qy_grid[work_group], qz_grid[work_group]);
     q2 = length(q) * length(q);
-    
+
     t_real = 0.;
     t_imag = 0.;
-    
+
     // loop over atoms
     for (i=0; i<atoms; i++){
-        
+
         // atom coordinate
         r_atom = (float3)(atom_coords_x[i], atom_coords_y[i], atom_coords_z[i]);
-        
+
         // occupancy
         occ = occupancies[i];
-        
+
         // B-factor
         B = bfactors[i];
-        
+
         // hat(phi_e)(q) = o e^{-2\pi i r_n \cdot q} \sum_{k=1}^5 a_k  e^{-(b_k + B) q^2 / 4}
-        
+
         // phase factor
         ramp_real =  occ * cos(2 * M_PI_F * dot(r_atom, q));
         ramp_imag = -occ * sin(2 * M_PI_F * dot(r_atom, q));
-        
+
         // loop cromer man coefs
         t = 0.;
         for (j=0; j<5; j++){
@@ -75,7 +75,7 @@ __kernel void calculate_q_density(
             BB = B + crom_B[5 * i + j];
             t += crom_w[5 * i + j] * exp(-BB * q2 / 4.);
         }
-        
+
         t_real += ramp_real * t;
         t_imag += ramp_imag * t;
     }
@@ -133,7 +133,7 @@ __kernel void calculate_density(
         // relative poistion of atom
         r2 = (x-x_atom)*(x-x_atom)+(y-y_atom)*(y-y_atom)+(z-z_atom)*(z-z_atom);
         
-        if (r2 < 1000.) {
+        // if (r2 < 1000.) {
             // loop cromer man coefs
             for (j=0; j<5; j++){
                 // cromer mann coefs (gausian widths)
@@ -142,7 +142,7 @@ __kernel void calculate_density(
                 out[work_group] += crom_w[5 * i + j] * occ * pow( PI / BB, (float)1.5) * exp(PI2 * r2 / BB);
                 //printf(" %f %f %f %f \n", crom_w[5 * i + j], B , crom_B[5 * i + j], BB);
             }
-        }
+        // }
     }
 }
 """
@@ -182,6 +182,17 @@ kernel_F    = program.calculate_q_density
 
 kernel.set_scalar_arg_dtypes(   11*[None] + [np.int32, np.int32])
 kernel_F.set_scalar_arg_dtypes( 12*[None] + [np.int32, np.int32])
+
+
+def radius_of_gyration(pdb):
+    # Rg^2 = \sum_n m_n (r_n - rcm)^2 / \sum_n m_n
+    # rcm = \sum_n m_n r_n / \sum_n m_n
+    xyz, occ, B, names = parse_pdb(pdb)
+    mass = occ * np.sum([[cromer_mann_params[name][8]] + cromer_mann_params[name][:4] for name in names])
+    M = np.sum(mass)
+    rcm = np.sum(mass[:, None] * xyz, axis=0) / M
+    Rg = np.sum(mass[:, None] * (xyz - rcm)**2) / M
+    return Rg**0.5
 
 
 def render_molecule_opencl(xyz, occ, B, names, x, y, z, cromer_mann_params, B_offset=0.):
@@ -238,7 +249,7 @@ def render_Fourier_molecule_opencl(xyz, occ, B, names, x, y, z, cromer_mann_para
 
     it = tqdm.tqdm(range(x.shape[0]), desc='updating pixel map', file=sys.stderr)
     for i in it:
-        kernel_F(queue, (1, x.shape[1]*x.shape[2]), None, 
+        kernel_F(queue, (1, x.shape[2]*x.shape[1]), None,
                 atom_coords_x,
                 atom_coords_y,
                 atom_coords_z,
@@ -251,10 +262,10 @@ def render_Fourier_molecule_opencl(xyz, occ, B, names, x, y, z, cromer_mann_para
                 crom_w,
                 Fr,
                 Fi,
-                len(xyz), 
-                i*x.shape[1]*x.shape[2])
+                len(xyz),
+                i*x.shape[2]*x.shape[1])
         queue.finish()
-    
+ 
     out_real = np.empty(x.shape, dtype=np.float32)
     out_imag = np.empty(x.shape, dtype=np.float32)
     cl.enqueue_copy(queue, out_real, Fr)
@@ -354,14 +365,14 @@ def render_molecule_from_pdb(pdb, vox, B_offset=1.):
     #B     = np.concatenate(N * [B])
     #names = np.concatenate(N * [names])
 
-    #R = np.array([
-    #[0.04222487, -0.93125197, -0.36192103],
-    #[0.15424726, -0.35182493,  0.92326973],
-    #[ -0.98712959, -0.09481037,  0.12878726]
-    #])
-    #xyz = R.dot(xyz.T).T
+    R = np.array([
+    [0.04222487, -0.93125197, -0.36192103],
+    [0.15424726, -0.35182493,  0.92326973],
+    [ -0.98712959, -0.09481037,  0.12878726]
+    ])
+    xyz = R.dot(xyz.T).T
     
-    x, y, z = define_grid(xyz, vox)
+    x, y, z = define_grid(xyz, vox, pad=50)
     
     print('array size:', x.shape, file=sys.stderr)
     S = render_molecule_opencl(xyz, occ, B, names, x, y, z, cromer_mann_params, B_offset)
@@ -371,16 +382,18 @@ def render_molecule_from_pdb(pdb, vox, B_offset=1.):
     return S
 
 
-def render_Fourier_molecule_from_pdb(pdb, dq, shape, B_offset=1., symmetry = None):
+def render_Fourier_molecule_from_pdb(
+    pdb, dq, shape, B_offset=1., symmetry = None,
+    qs = None):
     xyz, occ, B, names = parse_pdb(pdb)
 
     # hack to align symmetry axes with cartesian axes
-    #R = np.array([
-    #[0.04222487, -0.93125197, -0.36192103],
-    #[0.15424726, -0.35182493,  0.92326973],
-    #[ -0.98712959, -0.09481037,  0.12878726]
-    #])
-    #xyz = R.dot(xyz.T).T
+    R = np.array([
+    [0.04222487, -0.93125197, -0.36192103],
+    [0.15424726, -0.35182493,  0.92326973],
+    [ -0.98712959, -0.09481037,  0.12878726]
+    ])
+    xyz = R.dot(xyz.T).T
 
     # centre molecule
     xyz[:, 0] = xyz[:, 0] - np.mean(xyz[:, 0])
@@ -391,14 +404,17 @@ def render_Fourier_molecule_from_pdb(pdb, dq, shape, B_offset=1., symmetry = Non
     #occ   = np.concatenate(N * [occ])
     #B     = np.concatenate(N * [B])
     #names = np.concatenate(N * [names])
-    
-    qx = dq * (np.arange(shape[0]) - shape[0]//2)
-    qy = dq * (np.arange(shape[1]) - shape[1]//2)
-    qz = dq * (np.arange(shape[2]) - shape[2]//2)
-    qx, qy, qz = np.meshgrid(qx, qy, qz, indexing='ij')
-    
+
+    if qs is None:
+        qx = dq * (np.arange(shape[0]) - shape[0]//2)
+        qy = dq * (np.arange(shape[1]) - shape[1]//2)
+        qz = dq * (np.arange(shape[2]) - shape[2]//2)
+        qx, qy, qz = np.meshgrid(qx, qy, qz, indexing='ij')
+    else:
+        qx, qy, qz = qs[0], qs[1], qs[2]
+
     S = render_Fourier_molecule_opencl(xyz, occ, B, names, qx, qy, qz, cromer_mann_params, B_offset)
-    
+
     # normalise e-'s / A^3 --> e-'s / voxel 
     # S *= vox**3
     return S
